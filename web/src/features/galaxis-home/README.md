@@ -75,6 +75,29 @@ node web/scripts/scope-css.cjs \
    的地址是异步取回的。见 `use-platform.ts`。
 5. **已登录用户**在导航里看到的是「控制台」而不是「免费注册」。
 
+## 升级与部署
+
+切到二开镜像后，升级不再是 `docker pull`。两个脚本把流程固定下来：
+
+```bash
+# 本地：先看跟进某个上游版本会付出什么代价（只读，不动代码）
+scripts/upgrade.sh --check v1.0.0-rc.40
+scripts/upgrade.sh v1.0.0-rc.40          # 合并 + typecheck + test + build
+
+# 服务器：构建 → 平行验证 → 切换（出事可回滚）
+scripts/deploy.sh build
+scripts/deploy.sh verify     # 起在 :3001，只绑回环，NODE_TYPE=slave 不碰表结构
+scripts/deploy.sh cutover
+scripts/deploy.sh rollback
+```
+
+`upgrade.sh --check` 会分别列出两类影响：
+
+- **冲突面**：我们替换过的那 3 个文件，上游动过就会冲突。
+  处理原则是**保留上游的全部改动**，只把 component 换回 Galaxis 版本。
+- **兼容面**：我们依赖但没改的上游模块（认证 API、几个 hook、auth-store）。
+  这些不会冲突，但接口一变我们的页面就编译不过，所以合并后必须跑 typecheck。
+
 ## 已知的待办（内容缺口，不是代码问题）
 
 - `01.mp4`（教程视频）与 `wechat-qr.png`（企业微信二维码）在客户官网上
