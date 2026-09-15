@@ -1,0 +1,699 @@
+/*
+ * Galaxis 登录 / 注册页样式。
+ *
+ * 来源：客户原型（galaxis-web 的 auth-login.css + auth-register.css 合并去重）。
+ * 视觉设计原样保留，只做一处结构性改动：**全部收进 `.gx-auth` 作用域**。
+ *
+ * 【为什么必须收作用域】原型是独立 HTML 页面，全局选择器没人跟它抢；但这里是
+ * 注入 New API 的单页应用，样式表一旦加载就对整站生效，不只是本页：
+ *   - `:root{--ink:…; color-scheme:light}` 会改写全站 CSS 变量并干掉暗色模式
+ *   - `body{background:var(--paper)}` 会把控制台背景也一起改掉
+ *   - `form{margin-top:28px}` 会给站内**每一个** form 加上外边距
+ *   - `.btn` `.field` `.alert` `.msg` 这些通用类名极易和上游样式互相覆盖
+ * 单页应用不会在换路由时卸载样式表，所以离开本页后污染依然在。
+ *
+ * 收作用域顺带解决了另一半问题：`.gx-auth .inp`（0,2,0）的优先级高于
+ * Tailwind preflight 的 `input`（0,0,1），不必再写 !important 去抢。
+ *
+ * 配色写死为浅色，不跟随站点主题——这是客户指定的品牌视觉；
+ * `color-scheme:light` 限制在本作用域内，让表单控件和滚动条也一起保持浅色。
+ */
+
+.gx-auth {
+  color-scheme: light;
+
+  --paper: #fffefb;
+  --elevated: #ffffff;
+  --ink: #14110f;
+  --ink-2: #525252;
+  --ink-3: #8a8580;
+  --line: #dcdcd6;
+  --line-2: #c4c4bc;
+  --line-strong: #525252;
+  --accent: #f97316;
+  --accent-deep: #c2410c;
+  --danger: #b42318;
+  --ok: #3f7d3f;
+  --font-sans: Inter, system-ui, -apple-system, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas,
+    'Liberation Mono', monospace;
+  --dash-v: repeating-linear-gradient(180deg, var(--line) 0 4px, transparent 4px 8px);
+  --dash-h: repeating-linear-gradient(90deg, var(--line) 0 4px, transparent 4px 8px);
+
+  /* 原型里由 html/body 提供的铺满与配色，这里由包裹层自己承担 */
+  min-height: 100svh;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+
+  /* 原型 .auth 的骨架：左品牌 / 右表单 */
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.gx-auth *,
+.gx-auth *::before,
+.gx-auth *::after {
+  box-sizing: border-box;
+}
+
+.gx-auth a {
+  color: inherit;
+}
+
+@media (min-width: 920px) {
+  .gx-auth {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  }
+}
+
+/* ---------- 左：品牌栏 ---------- */
+.gx-auth .brand-pane {
+  position: relative;
+  display: none;
+  padding: clamp(32px, 4vw, 56px);
+  background: var(--paper);
+  border-right: 1px solid var(--line);
+  overflow: hidden;
+}
+@media (min-width: 920px) {
+  .gx-auth .brand-pane {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* 工程制图感的竖虚线导轨 */
+.gx-auth .rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--dash-v);
+  opacity: 0.8;
+}
+.gx-auth .rail-a {
+  left: clamp(18px, 2.2vw, 30px);
+}
+.gx-auth .rail-b {
+  right: clamp(18px, 2.2vw, 30px);
+}
+
+.gx-auth .brand-lock {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  position: relative;
+  text-decoration: none;
+}
+.gx-auth .brand-lock svg {
+  width: 34px;
+  height: 34px;
+  flex: none;
+}
+.gx-auth .brand-lock b {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.gx-auth .brand-mid {
+  margin-top: auto;
+  margin-bottom: auto;
+  padding: 40px 0;
+  position: relative;
+}
+.gx-auth .brand-kicker {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  color: var(--ink-3);
+  margin: 0 0 18px;
+}
+.gx-auth .brand-mid h2 {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.4vw, 1.95rem);
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+}
+.gx-auth .brand-mid h2 i {
+  font-style: normal;
+  color: var(--accent);
+}
+.gx-auth .brand-tag {
+  margin: 16px 0 0;
+  font-size: 0.92rem;
+  line-height: 1.85;
+  color: var(--ink-2);
+  max-width: 23em;
+}
+
+/* 登录页：三条卖点 */
+.gx-auth .brand-facts {
+  margin: 34px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+.gx-auth .brand-facts li {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 15px 2px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.87rem;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.gx-auth .brand-facts svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  margin-top: 3px;
+  color: var(--accent);
+}
+.gx-auth .brand-facts b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* 注册页：三步走，序号用 CSS 计数器生成 */
+.gx-auth .brand-steps {
+  margin: 34px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+  counter-reset: s;
+}
+.gx-auth .brand-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  padding: 15px 2px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.87rem;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.gx-auth .brand-steps li::before {
+  counter-increment: s;
+  content: counter(s);
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink);
+}
+.gx-auth .brand-steps b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.gx-auth .brand-foot {
+  position: relative;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+}
+.gx-auth .brand-foot i {
+  display: block;
+  width: 18px;
+  height: 1px;
+  background: var(--line-2);
+}
+
+/* ---------- 右：表单栏 ---------- */
+.gx-auth .form-pane {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(28px, 5vw, 56px) clamp(20px, 5vw, 48px);
+  background: var(--elevated);
+}
+.gx-auth .form-col {
+  width: 100%;
+  max-width: 392px;
+}
+
+/* 窄屏顶部的品牌条（品牌栏隐藏时才出现） */
+.gx-auth .mini-lock {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 34px;
+  text-decoration: none;
+}
+.gx-auth .mini-lock svg {
+  width: 30px;
+  height: 30px;
+  flex: none;
+}
+.gx-auth .mini-lock b {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+@media (min-width: 920px) {
+  .gx-auth .mini-lock {
+    display: none;
+  }
+}
+
+/* FIG 图号分隔线，和官网同一套语言 */
+.gx-auth .fig-rule {
+  position: relative;
+  height: 1px;
+  background: var(--dash-h);
+  margin-bottom: 30px;
+}
+.gx-auth .fig-rule .node {
+  position: absolute;
+  top: -3.5px;
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--line-strong);
+  background: var(--elevated);
+}
+.gx-auth .fig-rule .node-l {
+  left: 0;
+}
+.gx-auth .fig-rule .node-r {
+  right: 0;
+}
+.gx-auth .fig-rule .fig {
+  position: absolute;
+  top: -9px;
+  left: 0;
+  padding: 2px 12px 2px 16px;
+  background: var(--elevated);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.gx-auth .fig-rule .fig b {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.gx-auth .form-head h1 {
+  margin: 0;
+  font-size: 1.72rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+.gx-auth .form-head p {
+  margin: 10px 0 0;
+  font-size: 0.9rem;
+  color: var(--ink-2);
+}
+.gx-auth .form-head a {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 1.5px;
+}
+.gx-auth .form-head a:hover {
+  color: var(--accent-deep);
+}
+
+.gx-auth form {
+  margin-top: 28px;
+}
+.gx-auth .field {
+  margin-bottom: 18px;
+}
+.gx-auth .lbl {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 7px;
+}
+.gx-auth .lbl label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.gx-auth .lbl .req {
+  color: var(--accent);
+  margin-left: 2px;
+}
+.gx-auth .lbl .note {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+.gx-auth .lbl a,
+.gx-auth .lbl button.linklike {
+  font-size: 0.76rem;
+  color: var(--ink-3);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: var(--line-2);
+  border: 0;
+  background: none;
+  padding: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+.gx-auth .lbl a:hover,
+.gx-auth .lbl button.linklike:hover {
+  color: var(--accent-deep);
+  text-decoration-color: var(--accent);
+}
+
+.gx-auth .inp-wrap {
+  position: relative;
+  display: flex;
+}
+.gx-auth .inp {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--line-2);
+  background: var(--elevated);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.94rem;
+  border-radius: 0;
+  outline: none;
+  transition: border-color 0.16s, box-shadow 0.16s;
+}
+.gx-auth .inp::placeholder {
+  color: var(--ink-3);
+}
+.gx-auth .inp:hover {
+  border-color: var(--line-strong);
+}
+.gx-auth .inp:focus {
+  border-color: var(--ink);
+  box-shadow: inset 3px 0 0 0 var(--accent);
+}
+.gx-auth .inp.is-err {
+  border-color: var(--danger);
+  box-shadow: inset 3px 0 0 0 var(--danger);
+}
+.gx-auth .has-eye .inp {
+  padding-right: 44px;
+}
+
+.gx-auth .eye {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 44px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+  padding: 0;
+}
+.gx-auth .eye:hover {
+  color: var(--ink);
+}
+.gx-auth .eye svg {
+  width: 18px;
+  height: 18px;
+}
+
+.gx-auth .msg {
+  margin: 7px 0 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  color: var(--danger);
+}
+
+/* ---------- 主按钮 ---------- */
+.gx-auth .btn {
+  position: relative;
+  width: 100%;
+  height: 50px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 0;
+  cursor: pointer;
+  transition: transform 0.18s, opacity 0.18s;
+}
+.gx-auth .btn:hover {
+  transform: translateY(-1px);
+  opacity: 0.9;
+}
+.gx-auth .btn:active {
+  transform: none;
+}
+.gx-auth .btn svg {
+  width: 17px;
+  height: 17px;
+}
+.gx-auth .btn[disabled] {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+}
+.gx-auth .btn .spin {
+  width: 16px;
+  height: 16px;
+  animation: gx-sp 0.7s linear infinite;
+}
+@keyframes gx-sp {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 验证码：输入框 + 发送按钮 */
+.gx-auth .code-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+}
+.gx-auth .btn-ghost {
+  height: 46px;
+  padding: 0 16px;
+  white-space: nowrap;
+  border: 1px solid var(--ink);
+  background: var(--elevated);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background 0.16s, color 0.16s;
+}
+.gx-auth .btn-ghost:hover:not([disabled]) {
+  background: var(--ink);
+  color: var(--paper);
+}
+.gx-auth .btn-ghost[disabled] {
+  cursor: not-allowed;
+  border-color: var(--line-2);
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+/* 密码强度：三段 */
+.gx-auth .strength {
+  margin-top: 9px;
+}
+.gx-auth .strength-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.gx-auth .strength-bar i {
+  display: block;
+  height: 3px;
+  background: var(--line);
+}
+.gx-auth .strength-txt {
+  margin: 6px 0 0;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+.gx-auth .strength[data-lv='1'] i:nth-child(1) {
+  background: var(--danger);
+}
+.gx-auth .strength[data-lv='2'] i:nth-child(-n + 2) {
+  background: var(--accent);
+}
+.gx-auth .strength[data-lv='3'] i {
+  background: var(--ok);
+}
+
+/* 条款勾选 */
+.gx-auth .check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 22px 0 20px;
+  cursor: pointer;
+}
+.gx-auth .check input {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  border: 1px solid var(--line-strong);
+  background: var(--elevated);
+  border-radius: 0;
+  cursor: pointer;
+  position: relative;
+}
+.gx-auth .check input:checked {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.gx-auth .check input:checked::after {
+  content: '';
+  position: absolute;
+  left: 4.5px;
+  top: 1.5px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--paper);
+  border-width: 0 1.6px 1.6px 0;
+  transform: rotate(42deg);
+}
+.gx-auth .check input.is-err {
+  border-color: var(--danger);
+}
+.gx-auth .check span {
+  font-size: 0.82rem;
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+.gx-auth .check a {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: var(--accent);
+}
+.gx-auth .check a:hover {
+  color: var(--accent-deep);
+}
+
+/* ---------- 全局提示条 ---------- */
+.gx-auth .alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-2);
+  border-left: 3px solid var(--accent);
+  background: #fffcf6;
+  font-size: 0.84rem;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.gx-auth .alert.is-bad {
+  border-left-color: var(--danger);
+  background: #fdf6f5;
+}
+.gx-auth .alert svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
+}
+.gx-auth .alert.is-bad svg {
+  color: var(--danger);
+}
+
+/* Turnstile 人机校验容器：后台开启时才渲染 */
+.gx-auth .turnstile-slot {
+  margin-bottom: 18px;
+}
+
+/* ---------- 底部 ---------- */
+.gx-auth .form-foot {
+  margin: 26px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  color: var(--ink-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  align-items: center;
+}
+.gx-auth .form-foot a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: var(--line-2);
+}
+.gx-auth .form-foot a:hover {
+  color: var(--accent-deep);
+}
+
+/*
+ * AGPL 署名行。
+ * AGPL-3.0 第 5(d) 条与上游 NOTICE 的附加条款要求：修改后的界面必须保留
+ * 原作者署名与源码入口。字号压到最小但保持可读，不隐藏、不折叠。
+ */
+.gx-auth .attrib {
+  margin: 14px 0 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.7;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+.gx-auth .attrib a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: var(--line-2);
+}
+.gx-auth .attrib a:hover {
+  color: var(--accent-deep);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gx-auth *,
+  .gx-auth *::before,
+  .gx-auth *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

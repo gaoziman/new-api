@@ -18,8 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute } from '@tanstack/react-router'
 
-import { Home } from '@/features/home'
+import { GalaxisHome } from '@/features/galaxis-home'
 
 export const Route = createFileRoute('/')({
-  component: Home,
+  component: GalaxisHome,
 })
