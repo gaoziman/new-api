@@ -195,6 +195,74 @@ func TestRedisFixedWindowRepairsCounterWithoutTTL(t *testing.T) {
 	assert.False(t, redisServer.Exists(key), "a recovered counter must not remain permanently rate-limited")
 }
 
+func TestRefreshRateLimitDoesNotShareBudgetWithLogin(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	redisServer, _ := useRateLimitMiniRedis(t)
+
+	previousEnable := common.CriticalRateLimitEnable
+	previousCriticalNum := common.CriticalRateLimitNum
+	previousRefreshNum := common.RefreshRateLimitNum
+	previousRefreshDuration := common.RefreshRateLimitDuration
+	common.CriticalRateLimitEnable = true
+	common.CriticalRateLimitNum = 2
+	common.RefreshRateLimitNum = 3
+	common.RefreshRateLimitDuration = 47
+	t.Cleanup(func() {
+		common.CriticalRateLimitEnable = previousEnable
+		common.CriticalRateLimitNum = previousCriticalNum
+		common.RefreshRateLimitNum = previousRefreshNum
+		common.RefreshRateLimitDuration = previousRefreshDuration
+	})
+
+	router := gin.New()
+	require.NoError(t, router.SetTrustedProxies(nil))
+	router.GET("/refresh", RefreshRateLimit(), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	router.GET("/login", CriticalRateLimit(), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
+	const remoteAddr = "192.0.2.70:12345"
+
+	for range 3 {
+		assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/refresh", remoteAddr).Code)
+	}
+	assert.Equal(t, http.StatusTooManyRequests, performRateLimitRequest(router, "/refresh", remoteAddr).Code)
+
+	// 这一段是本次修复的核心：令牌刷新打满自己的额度后，登录必须仍然可用。
+	// 线上事故就是两者共用 CT 桶——刷新风暴把额度耗尽，用户被登出后连登录都 429，
+	// 等于把自己锁在门外 20 分钟。
+	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/login", remoteAddr).Code)
+	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/login", remoteAddr).Code)
+	assert.Equal(t, http.StatusTooManyRequests, performRateLimitRequest(router, "/login", remoteAddr).Code)
+
+	refreshKey := redisIPRateLimitKey(RefreshRateLimitMark, "192.0.2.70")
+	criticalKey := redisIPRateLimitKey("CT", "192.0.2.70")
+	assert.NotEqual(t, refreshKey, criticalKey, "两个桶必须是不同的 Redis 键")
+	assert.True(t, redisServer.Exists(refreshKey))
+	assert.Equal(t, 47*time.Second, redisServer.TTL(refreshKey))
+}
+
+func TestRefreshRateLimitHonorsCriticalDisableSwitch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	useRateLimitMiniRedis(t)
+
+	previousEnable := common.CriticalRateLimitEnable
+	previousRefreshNum := common.RefreshRateLimitNum
+	common.CriticalRateLimitEnable = false
+	common.RefreshRateLimitNum = 1
+	t.Cleanup(func() {
+		common.CriticalRateLimitEnable = previousEnable
+		common.RefreshRateLimitNum = previousRefreshNum
+	})
+
+	router := gin.New()
+	require.NoError(t, router.SetTrustedProxies(nil))
+	router.GET("/refresh", RefreshRateLimit(), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
+	// 关掉总开关后不应再限流，否则运维想临时放开会发现 refresh 依然被卡
+	for range 5 {
+		assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/refresh", "192.0.2.71:12345").Code)
+	}
+}
+
 func TestRedisFailurePolicies(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	_, redisClient := useRateLimitMiniRedis(t)

@@ -178,6 +178,21 @@ func CriticalRateLimit() func(c *gin.Context) {
 	return defNext
 }
 
+// RefreshRateLimitMark 是令牌刷新专用的限流桶标记，刻意与 CriticalRateLimit 的 "CT" 分开。
+const RefreshRateLimitMark = "RF"
+
+// RefreshRateLimit 给令牌刷新用的限流器。
+//
+// 刷新是控制台的常规心跳（实测每 30~50 秒一次），和登录、注册这些真正需要防爆破的
+// 操作性质不同，不该共用一个额度。共用时刷新会先把额度吃光，导致用户被登出后连
+// 登录都被 429 挡住。沿用 CRITICAL_RATE_LIMIT_ENABLE 总开关，方便运维一次性放开。
+func RefreshRateLimit() func(c *gin.Context) {
+	if common.CriticalRateLimitEnable {
+		return rateLimitFactory(common.RefreshRateLimitNum, common.RefreshRateLimitDuration, RefreshRateLimitMark)
+	}
+	return defNext
+}
+
 func UserCriticalRateLimit(scope string) func(c *gin.Context) {
 	if !common.CriticalRateLimitEnable {
 		return defNext

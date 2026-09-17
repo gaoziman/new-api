@@ -219,6 +219,14 @@ var (
 	CriticalRateLimitNum            = 20
 	CriticalRateLimitDuration int64 = 20 * 60
 
+	// 令牌刷新单独一个桶，不和登录/注册共用 CriticalRateLimit。
+	// 控制台大约每 30~50 秒刷新一次，20 分钟就是 24~40 次，仅此一项就能把
+	// 20 次的 critical 额度耗尽；耗尽后用户被登出，而登录在同一个桶里同样 429，
+	// 等于被锁在门外整个窗口期（线上已实际发生）。刷新是常规心跳而不是敏感操作，
+	// 给它独立且宽松的额度，登录/注册的防爆破保护保持原样。
+	RefreshRateLimitNum            = 120
+	RefreshRateLimitDuration int64 = 20 * 60
+
 	UploadRateLimitNum            = 10
 	UploadRateLimitDuration int64 = 60
 
