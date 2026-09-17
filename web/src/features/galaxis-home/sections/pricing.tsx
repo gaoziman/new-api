@@ -282,13 +282,27 @@ export function Pricing() {
             <div className='pt-wrap'>
               <table>
                 <thead>
+                  {/*
+                    两层表头：上层交代这几列价格的归属（都是我们的实付价，不是官方价），
+                    下层是具体口径。缓存两列单独成组，和主价拉开。
+                  */}
                   <tr>
-                    <th>模型</th>
+                    <th rowSpan={2}>模型</th>
+                    <th className='grp' colSpan={2}>
+                      GalaxisRouter
+                    </th>
+                    <th className='grp soft' colSpan={2}>
+                      缓存
+                    </th>
+                    <th className='ven' rowSpan={2}>
+                      供应商
+                    </th>
+                  </tr>
+                  <tr>
                     <th className='num'>输入 / 1M</th>
                     <th className='num'>输出 / 1M</th>
                     <th className='num soft'>缓存命中</th>
                     <th className='num soft'>缓存写入</th>
-                    <th className='ven'>供应商</th>
                   </tr>
                 </thead>
                 <tbody>

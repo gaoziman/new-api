@@ -1343,6 +1343,26 @@ background:var(--paper);color:var(--ink);
   color: var(--ink-3);
   white-space: nowrap;
 }
+/* ---------- 两层表头 ---------- */
+/* 上层交代这几列价格的归属：都是实付价，不是官方价。
+   放在顶部是因为四个数字列全是我们的价，逐列写「（GalaxisRouter）」会把列头撑长。 */
+.gx-home .price-table thead th.grp {
+  text-align: center;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+  /* 品牌名是混合大小写，不能被 thead 的 uppercase 压成 GALAXISROUTER */
+  text-transform: none;
+}
+.gx-home .price-table thead tr:last-child th {
+  padding-top: 7px;
+}
+/* 模型 / 供应商 跨两行，文字贴底才能和下层那排列名对齐 */
+.gx-home .price-table thead th[rowspan] {
+  vertical-align: bottom;
+}
 .gx-home .price-table td {
   padding: 13px 18px;
   vertical-align: middle;
