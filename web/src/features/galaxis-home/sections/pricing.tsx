@@ -1,28 +1,37 @@
 /*
  * 价格区。结构与文案来自客户原型。
  *
- * 【与官网版的差别】官网是构建期把价目表烘进 HTML、再由脚本运行期静默刷新。
- * 这里与后端同源，直接运行期取一次即可——价格随后台配置变动，
- * 烘进前端产物只会让它过期。
+ * 【与官网版的差别】
+ * 1. 官网构建期把价目表烘进 HTML 再由脚本运行期刷新；这里与后端同源，
+ *    运行期取一次即可——价格随后台配置变动，烘进前端产物只会让它过期。
+ * 2. 厂商图标走 `getLobeIcon()`（接口返回的 `vendors[].icon` 就是 lobehub 的名字，
+ *    如 `OpenAI`、`Claude.Color`）。原型是纯静态 HTML、没有图标库，那一列留空。
  *
  * 【为什么保留 id="priceTable" 与 data-src】原型的滚动揭示动画按 id 选元素；
  * data-src 留作排查用，能一眼看出这张表的数据来自哪个接口。
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+
+import { getLobeIcon } from '@/lib/lobe-icon'
 
 import {
   PRICING_PATH,
-  groupByVendor,
   toRows,
+  uniformCacheDiscount,
   type ModelRow,
   type PricingPayload,
 } from '../pricing'
 
 type Status = 'loading' | 'ready' | 'failed'
 
+const usd = (n: number) => `$${n.toFixed(2)}`
+
 export function Pricing() {
   const [rows, setRows] = useState<ModelRow[]>([])
   const [status, setStatus] = useState<Status>('loading')
+  /** null = 不按厂商筛选。用 null 而不是哨兵字符串，省得跟真实厂商名撞车。 */
+  const [vendor, setVendor] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -56,8 +65,29 @@ export function Pricing() {
     }
   }, [])
 
-  const byVendor = groupByVendor(rows)
-  const vendors = Object.keys(byVendor)
+  /** 厂商 Tab：顺序跟表格一致，附带每家的模型数。 */
+  const vendors = useMemo(() => {
+    const counts = new Map<string, { count: number; icon: string }>()
+    for (const r of rows) {
+      const hit = counts.get(r.vendor)
+      if (hit) hit.count += 1
+      else counts.set(r.vendor, { count: 1, icon: r.vendorIcon })
+    }
+    return [...counts.entries()].map(([name, v]) => ({ name, ...v }))
+  }, [rows])
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return rows.filter(
+      (r) =>
+        (vendor === null || r.vendor === vendor) &&
+        (q === '' ||
+          r.name.toLowerCase().includes(q) ||
+          r.snapshots.some((s) => s.includes(q)))
+    )
+  }, [rows, vendor, query])
+
+  const discount = useMemo(() => uniformCacheDiscount(rows), [rows])
 
   return (
     <>
@@ -72,8 +102,25 @@ export function Pricing() {
       <div className='price-zone' id='pricing'>
         <div className='dl-head reveal'>
           <h2>用多少付多少，没有月费</h2>
-          <p>账户预充值，余额用完自动停，不会自动扣款</p>
+          <p>
+            下面是你实际会被扣掉的价格，已经按分组倍率算好，不需要再自己折算。
+            单位为美元 / 每百万 token。
+          </p>
         </div>
+
+        {/*
+          「缓存命中只要 N 折」由数据推导，不写死：后台把任意一个模型的
+          cache_ratio 调走，这句话就不再对全部模型成立，此时整块不渲染。
+        */}
+        {discount !== null && (
+          <div className='pt-anchor reveal'>
+            <b>缓存命中只要 {+(discount * 10).toFixed(2)} 折</b>
+            <span>
+              重复的上下文按输入价的 {+(discount * 100).toFixed(2)}% 计费，
+              全部模型都适用
+            </span>
+          </div>
+        )}
 
         <div className='price-facts reveal'>
           <div className='pf-item'>
@@ -138,7 +185,84 @@ export function Pricing() {
 
         {/* 模型价目表：运行期从同源接口取 */}
         <div className='price-table reveal' id='priceTable' data-src={PRICING_PATH}>
-          {status === 'loading' && <p className='pt-empty'>价格加载中…</p>}
+          {status === 'ready' && rows.length > 0 && (
+            <div className='pt-controls'>
+              <div className='pt-tabs' role='group' aria-label='按厂商筛选'>
+                <button
+                  type='button'
+                  className='pt-tab'
+                  aria-pressed={vendor === null}
+                  onClick={() => setVendor(null)}
+                >
+                  全部 <span className='cnt'>{rows.length}</span>
+                </button>
+                {vendors.map((v) => (
+                  <button
+                    type='button'
+                    key={v.name}
+                    className='pt-tab'
+                    aria-pressed={vendor === v.name}
+                    onClick={() => setVendor(v.name)}
+                  >
+                    <span className='pt-ico' aria-hidden='true'>
+                      {getLobeIcon(v.icon, 15)}
+                    </span>
+                    {v.name} <span className='cnt'>{v.count}</span>
+                  </button>
+                ))}
+              </div>
+              <div className='pt-search'>
+                <svg
+                  viewBox='0 0 24 24'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth='2'
+                  strokeLinecap='round'
+                  aria-hidden='true'
+                >
+                  <circle cx='11' cy='11' r='7' />
+                  <path d='m20 20-3.5-3.5' />
+                </svg>
+                <input
+                  type='search'
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder='搜索模型'
+                  aria-label='搜索模型'
+                />
+              </div>
+            </div>
+          )}
+
+          {status === 'loading' && (
+            /* 骨架屏形状与真实行一致，不用转圈——转圈看不出要等多久，也撑不住布局 */
+            <div className='pt-wrap' aria-busy='true' aria-label='价格加载中'>
+              <table>
+                <tbody>
+                  {Array.from({ length: 6 }, (_, i) => (
+                    <tr key={i}>
+                      <td>
+                        <span className='pt-sk lg' />
+                      </td>
+                      <td className='num'>
+                        <span className='pt-sk sm' />
+                      </td>
+                      <td className='num'>
+                        <span className='pt-sk sm' />
+                      </td>
+                      <td className='num soft'>
+                        <span className='pt-sk xs' />
+                      </td>
+                      <td className='num soft'>
+                        <span className='pt-sk xs' />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {/*
             取不到时必须说清楚，不能停在「加载中…」。
             价格页一直转圈会让人以为是自己网络的问题而反复刷新。
@@ -146,44 +270,92 @@ export function Pricing() {
           {status === 'failed' && (
             <p className='pt-empty'>价格暂时取不到，请稍后刷新页面重试。</p>
           )}
-          {vendors.map((v) => (
-            <div className='pt-group' key={v}>
-              <h3 className='pt-vendor'>{v}</h3>
-              <div className='pt-scroll'>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>模型</th>
-                      <th>分组</th>
-                      <th className='num'>输入</th>
-                      <th className='num'>输出</th>
-                      <th className='num'>缓存命中</th>
+
+          {status === 'ready' && visible.length === 0 && (
+            <p className='pt-empty'>
+              <b>没有匹配的模型</b>
+              换个关键词，或点「全部」看完整列表
+            </p>
+          )}
+
+          {status === 'ready' && visible.length > 0 && (
+            <div className='pt-wrap'>
+              <table>
+                <thead>
+                  <tr>
+                    <th>模型</th>
+                    <th className='num'>输入 / 1M</th>
+                    <th className='num'>输出 / 1M</th>
+                    <th className='num soft'>缓存命中</th>
+                    <th className='num soft'>缓存写入</th>
+                    <th className='ven'>供应商</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visible.map((r, i) => (
+                    <tr
+                      key={`${r.vendor}/${r.name}`}
+                      className={
+                        i > 0 && visible[i - 1].vendor !== r.vendor
+                          ? 'pt-gap'
+                          : undefined
+                      }
+                    >
+                      <td>
+                        <div className='pt-name'>{r.name}</div>
+                        <div className='pt-sub'>
+                          {r.vendor}
+                          <span className='pt-grp'>{r.groupLabel}</span>
+                          {r.snapshots.length > 0 && (
+                            <span
+                              className='pt-snap'
+                              title={`含日期快照版本：${r.snapshots
+                                .map((s) => `${r.name}-${s}`)
+                                .join('、')}`}
+                            >
+                              含 {r.snapshots.length} 个日期快照
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className='num' data-label='输入 / 1M'>
+                        <span className='pt-price'>{usd(r.inputUsd)}</span>
+                      </td>
+                      <td className='num' data-label='输出 / 1M'>
+                        <span className='pt-price'>{usd(r.outputUsd)}</span>
+                      </td>
+                      <td className='num soft' data-label='缓存命中'>
+                        {r.cacheHitUsd === null ? (
+                          <span className='pt-na'>不适用</span>
+                        ) : (
+                          <span className='pt-hit'>{usd(r.cacheHitUsd)}</span>
+                        )}
+                      </td>
+                      <td className='num soft' data-label='缓存写入'>
+                        {r.cacheWriteUsd === null ? (
+                          <span className='pt-na'>不适用</span>
+                        ) : (
+                          <span className='pt-write'>
+                            {usd(r.cacheWriteUsd)}
+                          </span>
+                        )}
+                      </td>
+                      <td className='ven'>
+                        <span className='pt-ico' aria-hidden='true'>
+                          {getLobeIcon(r.vendorIcon, 19)}
+                        </span>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {byVendor[v].map((r) => (
-                      <tr key={`${r.vendor}/${r.name}/${r.group}`}>
-                        <td className='pt-name'>{r.name}</td>
-                        <td>
-                          <span className='pt-tag'>{r.groupLabel}</span>
-                        </td>
-                        <td className='num'>${r.inputUsd.toFixed(2)}</td>
-                        <td className='num'>${r.outputUsd.toFixed(2)}</td>
-                        <td className='num'>
-                          {r.cachedUsd === null
-                            ? '—'
-                            : `$${r.cachedUsd.toFixed(2)}`}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ))}
+          )}
+
           <p className='pt-note'>
-            单位：美元 / 每百万
-            token，为模型基准单价。实际扣费还会按你所在分组的倍率折算，登录客户端可查看实时余额与用量。
+            价格已包含分组倍率。<code>缓存命中</code> 指上下文被复用时的输入单价，
+            <code>缓存写入</code> 指首次建立缓存的一次性开销。日期快照版本与主版本
+            价格相同，已并入同一行。余额用完自动停，不会自动扣款。
           </p>
         </div>
       </div>

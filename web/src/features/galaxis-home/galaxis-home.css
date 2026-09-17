@@ -1199,88 +1199,365 @@ background:var(--paper);color:var(--ink);
    这一部分是新增的。样式沿用原型的设计变量（--ink / --line /
    --accent / --font-mono 等），不改动 prototype.css，
    保证那份文件仍能与客户给的原型逐行 diff。
+
+   这份文件是真源：new-api 那边的 galaxis-home.css 由
+   `web/scripts/scope-css.cjs` 从这里生成，不要直接改生成物。
    ============================================================ */
 .gx-home .price-table {
   margin-top: 38px;
 }
+/* ---------- 价值锚点 ---------- */
+/* 缓存命中折扣对所有分组都成立，是这张表上唯一能诚实讲的便宜。
+   品牌橙只出现在这里和缓存命中列，指向卖点而不是装饰。 */
+.gx-home .pt-anchor {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 22px;
+  margin-bottom: 30px;
+  padding: 10px 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.gx-home .pt-anchor b {
+  font-family: var(--font-mono);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--accent-deep, var(--accent));
+}
+.gx-home .pt-anchor span {
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+/* ---------- 筛选栏 ---------- */
+.gx-home .pt-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.gx-home .pt-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.gx-home .pt-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--elevated, #fff);
+  color: var(--ink-2);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    color 0.15s,
+    background 0.15s;
+}
+.gx-home .pt-tab:hover {
+  border-color: var(--ink-3);
+  color: var(--ink);
+}
+.gx-home .pt-tab[aria-pressed='true'] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+  font-weight: 600;
+}
+.gx-home .pt-tab .cnt {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  opacity: 0.6;
+}
+.gx-home .pt-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+/* 选中态是深底，彩色厂商图标在上面会糊；转灰并提亮 */
+.gx-home .pt-tab[aria-pressed='true'] .pt-ico {
+  filter: grayscale(1) brightness(2.4);
+}
+.gx-home .pt-search {
+  position: relative;
+  margin-left: auto;
+}
+.gx-home .pt-search svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  transform: translateY(-50%);
+  color: var(--ink-3);
+}
+.gx-home .pt-search input {
+  width: 210px;
+  padding: 8px 12px 8px 32px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--elevated, #fff);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  transition: border-color 0.15s;
+}
+.gx-home .pt-search input::placeholder {
+  color: var(--ink-3);
+}
+.gx-home .pt-search input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+/* ---------- 表格 ---------- */
+/* 窄屏不横向压缩列宽——价格数字被挤换行就没法比价了，改为整行塌成卡片 */
+.gx-home .pt-wrap {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--elevated, #fff);
+  overflow: hidden;
+}
+.gx-home .price-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.gx-home .price-table thead th {
+  padding: 11px 18px;
+  text-align: left;
+  border: 0;
+  background: color-mix(in srgb, var(--line) 28%, transparent);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.gx-home .price-table td {
+  padding: 13px 18px;
+  vertical-align: middle;
+  border: 0;
+}
+/* 分隔线只画在厂商切换处。每行一条通栏细线会让 14 行看起来像账本 */
+.gx-home .price-table tbody tr.pt-gap td {
+  border-top: 1px solid var(--line);
+}
+.gx-home .price-table tbody tr {
+  transition: background 0.12s;
+}
+.gx-home .price-table tbody tr:hover {
+  background: color-mix(in srgb, var(--line) 16%, transparent);
+}
+.gx-home .price-table .num {
+  text-align: right;
+  white-space: nowrap;
+}
+.gx-home .price-table .ven {
+  text-align: center;
+  width: 64px;
+}
+/* 缓存两列压一档：金额逐行不同所以值得成列，但不该跟主价抢视线 */
+.gx-home .price-table .soft {
+  background: color-mix(in srgb, var(--ink-3) 5%, transparent);
+}
+.gx-home .pt-name {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.gx-home .pt-sub {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+/* 分组降为模型名下的小标签。原先它是独立一列，同一厂商每行都是同一个值，
+   占着宽度却零信息量，还独占了品牌色 */
+.gx-home .pt-grp {
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ink-3) 14%, transparent);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  color: var(--ink-2);
+}
+.gx-home .pt-snap {
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-size: 10.5px;
+  color: var(--ink-3);
+  cursor: help;
+}
+.gx-home .pt-price {
+  font-family: var(--font-mono);
+  font-size: 15.5px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.gx-home .pt-hit {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-deep, var(--accent));
+}
+.gx-home .pt-write {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+.gx-home .pt-na {
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+/* ---------- 骨架屏 ---------- */
+.gx-home .pt-sk {
+  display: block;
+  height: 13px;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--line) 45%, transparent) 25%,
+    var(--line) 37%,
+    color-mix(in srgb, var(--line) 45%, transparent) 63%
+  );
+  background-size: 400% 100%;
+}
+.gx-home .pt-sk.lg {
+  width: 170px;
+}
+.gx-home .pt-sk.sm {
+  width: 78px;
+  margin-left: auto;
+}
+.gx-home .pt-sk.xs {
+  width: 52px;
+  margin-left: auto;
+}
+@media (prefers-reduced-motion: no-preference) {
+.gx-home .pt-sk {
+    animation: gx-home-pt-shimmer 1.4s ease infinite;
+  }
+}
+@keyframes gx-home-pt-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+/* ---------- 空态与脚注 ---------- */
 .gx-home .pt-empty {
-  padding: 40px 0;
+  padding: 48px 20px;
   text-align: center;
   font-size: 0.88rem;
   color: var(--ink-3);
 }
-.gx-home .pt-group + .pt-group {
-  margin-top: 30px;
-}
-.gx-home .pt-vendor {
-  margin: 0 0 12px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-}
-/* 窄屏时表格横向滚动，不压缩列宽——价格数字被挤换行就没法比价了 */
-.gx-home .pt-scroll {
-  overflow-x: auto;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #fff;
-}
-.gx-home .price-table table {
-  width: 100%;
-  min-width: 560px;
-  border-collapse: collapse;
-  font-size: 0.87rem;
-}
-.gx-home .price-table th,
-.gx-home .price-table td {
-  padding: 11px 16px;
-  text-align: left;
-  border-bottom: 1px solid var(--line);
-  white-space: nowrap;
-}
-.gx-home .price-table tbody tr:last-child td {
-  border-bottom: 0;
-}
-.gx-home .price-table th {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-  background: #fbfaf8;
-}
-.gx-home .price-table .num {
-  text-align: right;
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-.gx-home .pt-name {
+.gx-home .pt-empty b {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 15px;
   font-weight: 550;
-  color: var(--ink);
-}
-.gx-home .pt-tag {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent-deep, var(--accent));
-  font-size: 0.76rem;
-  white-space: nowrap;
+  color: var(--ink-2);
 }
 .gx-home .pt-note {
-  margin: 14px 0 0;
+  margin: 16px 0 0;
   font-size: 0.79rem;
-  line-height: 1.7;
+  line-height: 1.75;
   color: var(--ink-3);
 }
-@media (max-width: 720px) {
-.gx-home .price-table th,
+.gx-home .pt-note code {
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ink-3) 12%, transparent);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+/* ---------- 移动端：行塌成卡片，4 个数字排 2x2 ---------- */
+@media (max-width: 860px) {
+.gx-home .price-table thead {
+    display: none;
+  }
+.gx-home .pt-wrap {
+    border: 0;
+    background: transparent;
+    overflow: visible;
+  }
+.gx-home .price-table table,
+.gx-home .price-table tbody {
+    display: block;
+  }
+.gx-home .price-table tbody tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 13px 14px;
+    margin-bottom: 10px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--elevated, #fff);
+  }
+.gx-home .price-table tbody tr:hover {
+    background: var(--elevated, #fff);
+  }
+.gx-home .price-table tbody tr.pt-gap td {
+    border-top: 0;
+  }
 .gx-home .price-table td {
-    padding: 10px 12px;
+    display: block;
+    padding: 0;
+  }
+.gx-home .price-table td:first-child {
+    grid-column: 1 / -1;
+  }
+.gx-home .price-table .ven {
+    display: none;
+  }
+.gx-home .price-table .num {
+    text-align: left;
+  }
+.gx-home .price-table .soft {
+    background: transparent;
+  }
+/* 列名跟着值走，否则塌成卡片后不知道哪个数字是什么 */
+.gx-home .price-table td.num::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 3px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+.gx-home .pt-search {
+    margin-left: 0;
+    width: 100%;
+  }
+.gx-home .pt-search input {
+    width: 100%;
   }
 }
 /* ============================================================
