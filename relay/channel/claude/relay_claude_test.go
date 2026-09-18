@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"context"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -399,4 +401,113 @@ func TestOpenAIChatRequestToClaudeMessages_ClaudeOpus48ThinkingUsesAdaptiveHighE
 	require.Nil(t, claudeRequest.Temperature)
 	require.Nil(t, claudeRequest.TopP)
 	require.Nil(t, claudeRequest.TopK)
+}
+
+// 上游零产出时不能按请求体估算计费：Claude Code 会发出 10MB 级别的请求体，
+// 预估值可达数百万 token，而实际上游一个 token 都没生成。
+func TestHandleStreamFinalResponseDoesNotBillEstimatedUsageWithoutUpstreamOutput(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	streamStatus := relaycommon.NewStreamStatus()
+	streamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, context.Canceled)
+
+	info := &relaycommon.RelayInfo{
+		OriginModelName:       "claude-fable-5-1",
+		ChannelMeta:           &relaycommon.ChannelMeta{UpstreamModelName: "claude-fable-5-1"},
+		RelayFormat:           types.RelayFormatClaude,
+		StreamStatus:          streamStatus,
+		ReceivedResponseCount: 0,
+	}
+	info.SetEstimatePromptTokens(5_409_010)
+	claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+
+	HandleStreamFinalResponse(c, info, claudeInfo)
+
+	assert.Zero(t, claudeInfo.Usage.PromptTokens)
+	assert.Zero(t, claudeInfo.Usage.CompletionTokens)
+	assert.Zero(t, claudeInfo.Usage.TotalTokens)
+}
+
+// 反过来，上游确实推过数据时不能被这条守卫吞掉：仍按既有回退逻辑补全用量。
+func TestHandleStreamFinalResponseStillBillsWhenUpstreamProducedOutput(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	streamStatus := relaycommon.NewStreamStatus()
+	streamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, context.Canceled)
+
+	info := &relaycommon.RelayInfo{
+		OriginModelName:       "claude-fable-5-1",
+		ChannelMeta:           &relaycommon.ChannelMeta{UpstreamModelName: "claude-fable-5-1"},
+		RelayFormat:           types.RelayFormatClaude,
+		StreamStatus:          streamStatus,
+		ReceivedResponseCount: 12,
+	}
+	info.SetEstimatePromptTokens(5_409_010)
+	claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+	claudeInfo.ResponseText.WriteString("partial answer from upstream")
+
+	HandleStreamFinalResponse(c, info, claudeInfo)
+
+	assert.NotZero(t, claudeInfo.Usage.CompletionTokens)
+}
+
+// 上游 message_start 已给出真实 input_tokens 时，不得被请求体估算覆盖。
+func TestHandleStreamFinalResponseDoesNotOverwriteRealPromptTokens(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	streamStatus := relaycommon.NewStreamStatus()
+	streamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, context.Canceled)
+
+	info := &relaycommon.RelayInfo{
+		OriginModelName:       "claude-fable-5-1",
+		ChannelMeta:           &relaycommon.ChannelMeta{UpstreamModelName: "claude-fable-5-1"},
+		RelayFormat:           types.RelayFormatClaude,
+		StreamStatus:          streamStatus,
+		ReceivedResponseCount: 12,
+	}
+	info.SetEstimatePromptTokens(5_409_010)
+	claudeInfo := &ClaudeResponseInfo{
+		Usage: &dto.Usage{PromptTokens: 27, CompletionTokens: 425, TotalTokens: 452},
+	}
+	claudeInfo.ResponseText.WriteString("partial answer from upstream")
+
+	HandleStreamFinalResponse(c, info, claudeInfo)
+
+	assert.Equal(t, 27, claudeInfo.Usage.PromptTokens)
+	assert.Equal(t, 425, claudeInfo.Usage.CompletionTokens)
+}
+
+// 上游带 usage 正常收尾时，用量必须原样保留。
+func TestHandleStreamFinalResponsePreservesUpstreamUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	streamStatus := relaycommon.NewStreamStatus()
+	streamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
+
+	info := &relaycommon.RelayInfo{
+		OriginModelName:       "claude-fable-5-1",
+		ChannelMeta:           &relaycommon.ChannelMeta{UpstreamModelName: "claude-fable-5-1"},
+		RelayFormat:           types.RelayFormatClaude,
+		StreamStatus:          streamStatus,
+		ReceivedResponseCount: 40,
+	}
+	claudeInfo := &ClaudeResponseInfo{
+		Done: true,
+		Usage: &dto.Usage{
+			PromptTokens:     32,
+			CompletionTokens: 2316,
+			TotalTokens:      2348,
+		},
+	}
+	claudeInfo.Usage.BillingUsage = dto.NewClaudeMessagesBillingUsage(&dto.ClaudeUsage{
+		InputTokens:              32,
+		OutputTokens:             2316,
+		CacheReadInputTokens:     273995,
+		CacheCreationInputTokens: 3063,
+	})
+
+	HandleStreamFinalResponse(c, info, claudeInfo)
+
+	assert.Equal(t, 32, claudeInfo.Usage.PromptTokens)
+	assert.Equal(t, 2316, claudeInfo.Usage.CompletionTokens)
 }

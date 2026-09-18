@@ -232,8 +232,30 @@ func countClaudeStreamBillableTools(c *gin.Context, info *relaycommon.RelayInfo,
 }
 
 func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo) {
-	if claudeInfo.Usage.PromptTokens == 0 {
-		//上游出错
+	// 上游连 message_start 都没发出来（一个 usage 字段都没拿到），此时没有任何真实用量可依据。
+	// 原先这里走下面的回退分支，用「整个请求体的预估值」当账单：大上下文客户端（Claude Code
+	// 动辄发出 10MB 请求体）会被估成数百万 token 按全价计费，即使上游一个 token 都没产出，
+	// 客户端一超时就是几百美元。没有真实用量时按零结算，预扣费由 BillingSession 全额退回。
+	// 只在上游零产出的情况下生效，与 Gemini、OpenAI 图像通道的「无上游响应不计费」一致。
+	if claudeInfo.Usage.BillingUsage == nil && info.ReceivedResponseCount == 0 {
+		reason := "no usage reported by upstream"
+		if info.StreamStatus != nil && info.StreamStatus.EndReason != relaycommon.StreamEndReasonNone {
+			reason = info.StreamStatus.Summary()
+		}
+		logger.LogWarn(c, fmt.Sprintf(
+			"claude stream produced no billable usage, charging nothing: %s", reason))
+		claudeInfo.Usage.PromptTokens = 0
+		claudeInfo.Usage.CompletionTokens = 0
+		claudeInfo.Usage.TotalTokens = 0
+		claudeInfo.Usage.UsageSemantic = "anthropic"
+		relayconvert.FinalizeClaudeStreamBillingUsage(claudeInfo)
+		return
+	}
+	// 上游确实推了数据，却始终没带 usage 字段：message_start 的 usage 才是权威账单，
+	// 有它就不能退回按请求体估算。这里补一份零用量的 billing usage，Finalize 会用
+	// 主 usage 的真实计数字段填充它，从而绕开下面的全量估算。
+	if claudeInfo.Usage.BillingUsage == nil && info.ReceivedResponseCount > 0 {
+		claudeInfo.Usage.BillingUsage = dto.NewClaudeMessagesBillingUsage(&dto.ClaudeUsage{})
 	}
 	if claudeInfo.Usage.CompletionTokens == 0 || !claudeInfo.Done {
 		if common.DebugEnabled {
