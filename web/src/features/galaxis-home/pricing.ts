@@ -54,6 +54,9 @@ export interface ModelRow {
   vendorIcon: string
   group: string
   groupLabel: string
+  /** 厂商官方牌价，不含分组倍率。用于和实付价并排对比。 */
+  officialInputUsd: number
+  officialOutputUsd: number
   /** 以下均为**含分组倍率**的实付单价，美元 / 百万 token。 */
   inputUsd: number
   outputUsd: number
@@ -64,6 +67,56 @@ export interface ModelRow {
 }
 
 export const PRICING_PATH = '/api/pricing'
+
+/** 汇率与充值价在这个接口上，不在 topup_info（客户接入说明写错了那个端点）。 */
+export const STATUS_PATH = '/api/status'
+
+interface StatusPayload {
+  success?: boolean
+  data?: { usd_exchange_rate?: number; price?: number }
+}
+
+/** 从 status 接口取汇率。取不到返回 null，调用方决定渲染占位还是保留旧值。 */
+export function ratesFrom(json: StatusPayload | null): PricingRates | null {
+  const d = json?.data
+  if (!d || typeof d.usd_exchange_rate !== 'number' || !d.usd_exchange_rate) {
+    return null
+  }
+  return {
+    usdToCny: d.usd_exchange_rate,
+    cnyPerQuotaUsd: typeof d.price === 'number' && d.price > 0 ? d.price : 1,
+  }
+}
+
+/** 两位小数、带千分位。金额一律走它，避免各处格式不一。 */
+export const money = (n: number) =>
+  n.toLocaleString('zh-CN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+
+/** 分组名 → 通道说明，表头分组行用。 */
+const CHANNEL_NOTE: Record<string, string> = {
+  'Claude Max': 'Claude Max 通道',
+  'codex pro': 'codex pro 通道',
+}
+
+/** 某厂商这批模型走的通道名。 */
+export function channelOf(rows: ModelRow[]): string {
+  const g = rows[0]?.groupLabel ?? ''
+  return CHANNEL_NOTE[g] ?? (g ? `${g} 通道` : '')
+}
+
+/** 按厂商分组，保持 toRows 已排好的顺序。 */
+export function byVendor(rows: ModelRow[]): [string, ModelRow[]][] {
+  const m = new Map<string, ModelRow[]>()
+  for (const r of rows) {
+    const list = m.get(r.vendor)
+    if (list) list.push(r)
+    else m.set(r.vendor, [r])
+  }
+  return [...m.entries()]
+}
 
 /**
  * 选出用于报价的分组。
@@ -85,6 +138,8 @@ function pickGroup(
 /** 四个价格字段是否完全相同。用于判断快照版能否并入主版本。 */
 function samePrice(a: ModelRow, b: ModelRow): boolean {
   return (
+    a.officialInputUsd === b.officialInputUsd &&
+    a.officialOutputUsd === b.officialOutputUsd &&
     a.inputUsd === b.inputUsd &&
     a.outputUsd === b.outputUsd &&
     a.cacheHitUsd === b.cacheHitUsd &&
@@ -124,11 +179,11 @@ export function toRows(p: PricingPayload): ModelRow[] {
     .filter((m) => m.quota_type === 0) // 按次计费的模型价格语义不同，不混在这张表里
     .map<ModelRow>((m) => {
       const group = pickGroup(m.enable_groups, p.group_ratio)
-      // 乘上分组倍率，得到用户实际被扣的价。不乘的话页面报价与账单对不上：
+      // 官方牌价：后台配 model_ratio 时就是按厂商官方价对齐的，所以 ×2 即得。
+      const official = round(m.model_ratio * USD_PER_RATIO_PER_M)
+      // 再乘分组倍率得到用户实际被扣的价。不乘的话页面报价与账单对不上：
       // Claude Max（1.5）会少报 33%，codex pro（0.5）会多报 100%。
-      const input = round(
-        m.model_ratio * (p.group_ratio?.[group] ?? 1) * USD_PER_RATIO_PER_M
-      )
+      const input = round(official * (p.group_ratio?.[group] ?? 1))
       const vendor = vendors.get(m.vendor_id)
       return {
         name: m.model_name,
@@ -136,6 +191,8 @@ export function toRows(p: PricingPayload): ModelRow[] {
         vendorIcon: vendor?.icon ?? '',
         group,
         groupLabel: p.usable_group?.[group] ?? group,
+        officialInputUsd: official,
+        officialOutputUsd: round(official * m.completion_ratio),
         inputUsd: input,
         outputUsd: round(input * m.completion_ratio),
         cacheHitUsd: m.cache_ratio ? round(input * m.cache_ratio) : null,
@@ -172,4 +229,113 @@ export function uniformCacheDiscount(rows: ModelRow[]): number | null {
     else if (shared !== ratio) return null
   }
   return shared
+}
+
+/* ------------------------------------------------------------------
+   人民币折算
+   本站按「1 元充值到账 1 美金额度」计价，厂商按美元牌价。要放在一张表里比，
+   必须把美元牌价按汇率折成人民币。汇率与充值价都来自 /api/status
+   （usd_exchange_rate / price），不写死在代码里——后台改完页面自动跟随。
+   ------------------------------------------------------------------ */
+
+export interface PricingRates {
+  /** 1 美元折合多少人民币。用于把厂商美元牌价换算成人民币。 */
+  usdToCny: number
+  /** 1 美金额度要付多少人民币。后台 Price 选项，当前为 1。 */
+  cnyPerQuotaUsd: number
+}
+
+/** 有官方牌价可比的两个方向。缓存只作用于输入侧，不与官方比。 */
+export type PriceDir = 'input' | 'output'
+export type PriceField = PriceDir | 'cacheHit' | 'cacheWrite'
+
+/** 厂商官方牌价折合人民币。 */
+export function officialCny(
+  row: ModelRow,
+  dir: PriceDir,
+  rates: PricingRates
+): number {
+  const usd = dir === 'input' ? row.officialInputUsd : row.officialOutputUsd
+  return round(usd * rates.usdToCny)
+}
+
+/** 取某个口径的本站额度价。缓存两项可能为 null。 */
+function quotaUsdOf(row: ModelRow, field: PriceField): number | null {
+  switch (field) {
+    case 'input':
+      return row.inputUsd
+    case 'output':
+      return row.outputUsd
+    case 'cacheHit':
+      return row.cacheHitUsd
+    default:
+      return row.cacheWriteUsd
+  }
+}
+
+/** 本站价折合人民币。缓存写入不适用时返回 null。 */
+export function ourCny(
+  row: ModelRow,
+  field: PriceField,
+  rates: PricingRates
+): number | null {
+  const quotaUsd = quotaUsdOf(row, field)
+  if (quotaUsd === null) return null
+  return round(quotaUsd * rates.cnyPerQuotaUsd)
+}
+
+/**
+ * 折扣比例（本站 ÷ 官方折合），越小越便宜。
+ * 汇率为 0 或缺失时返回 null —— 宁可显示破折号，也不能把 Infinity 摆到定价页上。
+ */
+export function discountRatio(
+  row: ModelRow,
+  dir: PriceDir,
+  rates: PricingRates
+): number | null {
+  const off = officialCny(row, dir, rates)
+  const ours = ourCny(row, dir, rates)
+  if (!off || ours === null) return null
+  return round(ours / off)
+}
+
+/** 每 1M token 省下的人民币。 */
+export function savedCny(
+  row: ModelRow,
+  dir: PriceDir,
+  rates: PricingRates
+): number | null {
+  const off = officialCny(row, dir, rates)
+  const ours = ourCny(row, dir, rates)
+  if (!off || ours === null) return null
+  return round(off - ours)
+}
+
+/** 把折扣比例写成「2.1 折」。取不到时给破折号，不留空格子。 */
+export function zhe(ratio: number | null): string {
+  return ratio === null ? '—' : `${(ratio * 10).toFixed(1)} 折`
+}
+
+/** 按月用量估算。millionIn / millionOut 单位是百万 token。 */
+export function monthlyCny(
+  row: ModelRow,
+  millionIn: number,
+  millionOut: number,
+  rates: PricingRates
+): { official: number; ours: number; saved: number; ratio: number | null } {
+  const official = round(
+    officialCny(row, 'input', rates) * millionIn +
+      officialCny(row, 'output', rates) * millionOut
+  )
+  const ours = round(
+    (ourCny(row, 'input', rates) ?? 0) * millionIn +
+      (ourCny(row, 'output', rates) ?? 0) * millionOut
+  )
+  return {
+    official,
+    ours,
+    saved: round(official - ours),
+    // 用量为 0 时没有可比基数，返回 null 而不是 0 折
+    ratio: official ? round(ours / official) : null,
+  }
 }

@@ -18,6 +18,9 @@ color-scheme: light;
   --line-strong:#525252;
   --accent:#f97316;
   --accent-deep:#c2410c;
+  /* 价格区 FIG.04 新增：格子 hover 底、本站分区底色（客户 DESIGN.md 第 2 节） */
+  --hover:#fffcf6;
+  --accent-tint:rgba(249,115,22,.06);
   --font-sans:Inter,system-ui,-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",sans-serif;
   --font-mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
   --dash-v:repeating-linear-gradient(180deg,var(--line) 0 4px,transparent 4px 8px);
@@ -1194,390 +1197,645 @@ background:var(--paper);color:var(--ink);
 .gx-home .fc-brand .b .foot-logo {width:28px;height:28px;flex:none}
 /* ===== 来自 galaxis-web/src/styles/pricing-table.css ===== */
 /* ============================================================
-   模型价目表
-   原型里「模型广场」只留了一条 CSS 注释、没有实际 HTML 块，
-   这一部分是新增的。样式沿用原型的设计变量（--ink / --line /
-   --accent / --font-mono 等），不改动 prototype.css，
-   保证那份文件仍能与客户给的原型逐行 diff。
+   FIG.04 价格区
+   按客户交付的 DESIGN.md 第 10 节 + pricing-v6.html 实现。
+   工程制图语法：发丝线切格、直角、等宽标注、单一橙点、零阴影。
 
    这份文件是真源：new-api 那边的 galaxis-home.css 由
    `web/scripts/scope-css.cjs` 从这里生成，不要直接改生成物。
+
+   已在 prototype.css 里的不重复声明：
+   :root 变量、.hrule / .node / .fig、.dl-head、.reveal、
+   .price-facts / .pf-item / .pf-ico、.price-zone
    ============================================================ */
-.gx-home .price-table {
-  margin-top: 38px;
+.gx-home .pz-mono {
+  font-family: var(--font-mono);
 }
-/* ---------- 价值锚点 ---------- */
-/* 缓存命中折扣对所有分组都成立，是这张表上唯一能诚实讲的便宜。
-   品牌橙只出现在这里和缓存命中列，指向卖点而不是装饰。 */
-.gx-home .pt-anchor {
+.gx-home .pz-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+/* ---------- 占位：黄黑斜纹，提醒这里还没接真数据 ---------- */
+.gx-home .ph {
   display: inline-flex;
-  align-items: baseline;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 22px;
-  margin-bottom: 30px;
-  padding: 10px 16px;
-  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  align-items: stretch;
+  overflow: hidden;
+  vertical-align: 1px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
 }
-.gx-home .pt-anchor b {
+.gx-home .ph::before {
+  content: '';
+  width: 10px;
+  flex: none;
+  background: repeating-linear-gradient(45deg, #111 0 4px, #f5c518 4px 8px);
+}
+.gx-home .ph span {
+  background: #ffe9a8;
+  color: #5c4400;
+  padding: 2px 6px;
+}
+/* ---------- 估算器 ---------- */
+.gx-home .calc {
+  border: 1px solid var(--line);
+  background: var(--elevated);
+}
+.gx-home .calc-ctl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px 32px;
+  align-items: flex-end;
+  padding: 22px 24px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.gx-home .ctl {
+  min-width: 170px;
+}
+.gx-home .ctl label,
+.gx-home .ctl-k {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 8px;
+}
+/* 下拉箭头内联成 data URI，避免为一个箭头引外链 */
+.gx-home .ctl select {
+  appearance: none;
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  color: var(--ink);
+  width: 100%;
+  height: 38px;
+  padding: 0 30px 0 12px;
+  border: 1px solid var(--line-2);
+  background: var(--elevated) no-repeat right 11px center;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a8580' stroke-width='1.5'/%3E%3C/svg%3E");
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.gx-home .ctl select:hover {
+  border-color: var(--line-strong);
+}
+.gx-home .ctl select:focus {
+  border-color: var(--accent);
+}
+.gx-home .ctl-range {
+  min-width: 210px;
+  flex: 1 1 210px;
+  max-width: 320px;
+}
+.gx-home .ctl-v {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.gx-home .ctl-v small {
+  font-weight: 400;
+  color: var(--ink-3);
+  font-size: 11px;
+  margin-left: 6px;
+  letter-spacing: 0.04em;
+}
+/* 滑块：轨 3px，拇指 14px 圆。圆是全站允许的两种曲线之一 */
+.gx-home .calc input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 24px;
+  background: transparent;
+  cursor: pointer;
+  display: block;
+  margin: 4px 0 0;
+}
+.gx-home .calc input[type='range']::-webkit-slider-runnable-track {
+  height: 3px;
+  background: var(--line-2);
+}
+.gx-home .calc input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-top: -5.5px;
+  border: 2px solid var(--paper);
+  box-shadow: 0 0 0 1px var(--line-2);
+}
+.gx-home .calc input[type='range']::-moz-range-track {
+  height: 3px;
+  background: var(--line-2);
+}
+.gx-home .calc input[type='range']::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--paper);
+}
+/* ---------- 五格算式：官方价 × 汇率 = 折合 → 本站价 → 折扣 ---------- */
+.gx-home .eq {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.gx-home .eq-cell {
+  padding: 16px 18px 15px;
+  background: var(--elevated);
+  min-width: 0;
+}
+.gx-home .eq-cell small {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 8px;
+  white-space: nowrap;
+}
+.gx-home .eq-cell small i {
+  font-style: normal;
+  color: var(--accent-deep);
+  font-weight: 500;
+}
+.gx-home .eq-cell b {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: clamp(18px, 1.9vw, 24px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.gx-home .eq-cell .sub {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+/* 折合人民币那格划掉：这是你本来要付的 */
+.gx-home .eq-cell.dim b {
+  color: var(--ink-3);
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+.gx-home .eq-cell.zone {
+  background: var(--accent-tint);
+}
+.gx-home .eq-cell.zone small,
+.gx-home .eq-cell.zone .sub {
+  color: var(--accent-deep);
+}
+/* 全区唯一的橙色实心面在这格的 accent 文字上，底是黑的 */
+.gx-home .eq-cell.out {
+  background: var(--ink);
+  color: var(--paper);
+}
+.gx-home .eq-cell.out small {
+  color: rgba(255, 254, 251, 0.6);
+}
+.gx-home .eq-cell.out small i {
+  color: var(--accent);
+}
+.gx-home .eq-cell.out b {
+  color: var(--paper);
+}
+.gx-home .eq-cell.out .sub {
+  color: rgba(255, 254, 251, 0.72);
+}
+/* ---------- 两根对比横条 ---------- */
+.gx-home .bars {
+  padding: 22px 24px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.gx-home .bar-row {
+  display: grid;
+  grid-template-columns: 130px 1fr 120px;
+  align-items: center;
+  gap: 16px;
+}
+.gx-home .bar-l {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+/* 条底用竖线纹当刻度，不用纯色块 */
+.gx-home .bar {
+  height: 22px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--line) 0 1px,
+    transparent 1px 8px
+  );
+  position: relative;
+}
+.gx-home .bar-fill {
+  height: 100%;
+  transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.gx-home .bar-fill.off {
+  background: var(--line-2);
+}
+.gx-home .bar-fill.mine {
+  background: var(--accent);
+}
+.gx-home .bar-v {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.gx-home .bar-v.dim {
+  color: var(--ink-3);
+  font-weight: 400;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+.gx-home .bar-v.hl {
+  color: var(--accent-deep);
+}
+/* ---------- 月省 / 年省 ---------- */
+.gx-home .calc-out {
+  margin: 16px 24px 0;
+  padding: 18px 0 22px;
+  border-top: 1px dashed var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 36px;
+  align-items: baseline;
+}
+.gx-home .co-k {
+  font-family: var(--font-mono);
+  font-size: clamp(26px, 3.2vw, 34px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--accent-deep);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.gx-home .co-l {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-top: 6px;
+}
+.gx-home .co-sub {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+.gx-home .co-sub b {
+  color: var(--ink);
+  font-weight: 600;
+}
+/* ---------- 筛选按钮：直角、白底黑字、选中黑底 ---------- */
+.gx-home .filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 36px 0 14px;
+}
+.gx-home .filters button {
+  height: 36px;
+  padding: 0 16px;
+  border: 1px solid var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  background: var(--elevated);
+  color: var(--ink);
+  transition:
+    background 0.18s,
+    color 0.18s;
+}
+.gx-home .filters button:hover,
+.gx-home .filters button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--paper);
+}
+.gx-home .filters button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+/* ---------- 数据表 ---------- */
+.gx-home .tbl {
+  border: 1px solid var(--line);
+  background: var(--elevated);
+  overflow: hidden;
+}
+.gx-home .ptab {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.gx-home .ptab th,
+.gx-home .ptab td {
+  padding-left: 18px;
+  padding-right: 18px;
+  text-align: right;
+}
+.gx-home .ptab th:first-child,
+.gx-home .ptab td:first-child {
+  text-align: left;
+  padding-left: 22px;
+}
+/* 上层表头：分区名 */
+.gx-home .zone-head th {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 400;
+  color: var(--ink-3);
+  text-align: center;
+  padding: 13px 18px 11px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.gx-home .zone-head th:first-child {
+  text-align: left;
+}
+.gx-home .zone-head th em {
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  margin-left: 8px;
+  color: var(--ink-3);
+}
+.gx-home .zone-head th.z {
+  color: var(--accent-deep);
+}
+.gx-home .zone-head th.z em {
+  color: var(--accent-deep);
+  opacity: 0.85;
+}
+/* 下层表头：列名 */
+.gx-home .col-head th {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 400;
+  color: var(--ink-3);
+  padding: 11px 18px;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--line);
+}
+.gx-home .col-head th.z {
+  color: var(--ink-2);
+}
+/* 本站分区：橙色浅底 + 左右发丝线界定 */
+.gx-home .z {
+  background: var(--accent-tint);
+}
+.gx-home .zl {
+  border-left: 1px solid var(--line);
+}
+.gx-home .zr {
+  border-right: 1px solid var(--line);
+}
+/* 厂商分组行 */
+.gx-home .grp td {
+  padding: 22px 18px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.gx-home .grp-name {
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.gx-home .grp-name span {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--ink-3);
+  margin-left: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+/* 数据行：虚线分隔，不是每行通栏实线 */
+.gx-home .ptab tbody tr.m td {
+  padding-top: 15px;
+  padding-bottom: 15px;
+  border-bottom: 1px dashed var(--line);
+  vertical-align: middle;
+}
+.gx-home .ptab tbody tr.m:last-child td {
+  border-bottom: 0;
+}
+.gx-home .ptab tbody tr.m:hover td {
+  background: var(--hover);
+}
+.gx-home .ptab tbody tr.m:hover td.z {
+  background: rgba(249, 115, 22, 0.1);
+}
+.gx-home .mname {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+.gx-home .mnote {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  margin-top: 4px;
+}
+/* 官方折合价划掉，下面小字写清它是怎么算出来的 */
+.gx-home .off-cny {
+  font-family: var(--font-mono);
+  font-size: 14.5px;
+  color: var(--ink-3);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  white-space: nowrap;
+}
+.gx-home .off-usd {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-3);
+  display: block;
+  margin-top: 3px;
+  letter-spacing: 0.02em;
+}
+.gx-home .mine-line {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  white-space: nowrap;
+}
+.gx-home .mine {
   font-family: var(--font-mono);
   font-size: 19px;
   font-weight: 600;
   letter-spacing: -0.02em;
-  color: var(--accent-deep, var(--accent));
 }
-.gx-home .pt-anchor span {
-  font-size: 13.5px;
-  color: var(--ink-2);
+.gx-home .mine i {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-3);
+  margin-right: 1px;
 }
-/* ---------- 筛选栏 ---------- */
-.gx-home .pt-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
-}
-.gx-home .pt-tabs {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.gx-home .pt-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 7px 14px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--elevated, #fff);
-  color: var(--ink-2);
-  font-size: 13.5px;
-  font-weight: 500;
-  cursor: pointer;
-  transition:
-    border-color 0.15s,
-    color 0.15s,
-    background 0.15s;
-}
-.gx-home .pt-tab:hover {
-  border-color: var(--ink-3);
-  color: var(--ink);
-}
-.gx-home .pt-tab[aria-pressed='true'] {
+.gx-home .zhe {
+  display: inline-block;
   background: var(--ink);
-  border-color: var(--ink);
   color: var(--paper);
-  font-weight: 600;
-}
-.gx-home .pt-tab .cnt {
   font-family: var(--font-mono);
-  font-size: 11.5px;
-  opacity: 0.6;
-}
-.gx-home .pt-ico {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-/* 选中态是深底，彩色厂商图标在上面会糊；转灰并提亮 */
-.gx-home .pt-tab[aria-pressed='true'] .pt-ico {
-  filter: grayscale(1) brightness(2.4);
-}
-.gx-home .pt-search {
-  position: relative;
-  margin-left: auto;
-}
-.gx-home .pt-search svg {
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  width: 14px;
-  height: 14px;
-  transform: translateY(-50%);
-  color: var(--ink-3);
-}
-.gx-home .pt-search input {
-  width: 210px;
-  padding: 8px 12px 8px 32px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--elevated, #fff);
-  color: var(--ink);
-  font: inherit;
-  font-size: 13.5px;
-  transition: border-color 0.15s;
-}
-.gx-home .pt-search input::placeholder {
-  color: var(--ink-3);
-}
-.gx-home .pt-search input:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-/* ---------- 表格 ---------- */
-/* 窄屏不横向压缩列宽——价格数字被挤换行就没法比价了，改为整行塌成卡片 */
-.gx-home .pt-wrap {
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--elevated, #fff);
-  overflow: hidden;
-}
-.gx-home .price-table table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-.gx-home .price-table thead th {
-  padding: 11px 18px;
-  text-align: left;
-  border: 0;
-  background: color-mix(in srgb, var(--line) 28%, transparent);
-  font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.09em;
+  letter-spacing: 0.02em;
+  padding: 3px 7px;
+}
+.gx-home .saved {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent-deep);
+  margin-top: 5px;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+.gx-home .cache {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  line-height: 1.7;
+}
+.gx-home .cache s {
+  text-decoration: none;
+  opacity: 0.65;
+  font-size: 10px;
+  margin-right: 3px;
+  letter-spacing: 0.06em;
+}
+.gx-home .foot {
+  margin-top: 18px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+  line-height: 1.9;
+}
+/* ---------- 卡片流（≤899px 顶替表格，同一份数据） ---------- */
+.gx-home .pcards {
+  display: none;
+}
+.gx-home .pc-grp {
+  margin: 28px 0 8px;
+}
+.gx-home .pcard {
+  border: 1px solid var(--line);
+  background: var(--elevated);
+  padding: 16px 16px 14px;
+  margin-bottom: 8px;
+}
+.gx-home .pc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.gx-home .pc-l {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-3);
-  white-space: nowrap;
+  margin-bottom: 5px;
 }
-/* ---------- 两层表头 ---------- */
-/* 上层交代这几列价格的归属：都是实付价，不是官方价。
-   放在顶部是因为四个数字列全是我们的价，逐列写「（GalaxisRouter）」会把列头撑长。 */
-.gx-home .price-table thead th.grp {
-  text-align: center;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--line);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  color: var(--ink-2);
-  /* 品牌名是混合大小写，不能被 thead 的 uppercase 压成 GALAXISROUTER */
-  text-transform: none;
-}
-.gx-home .price-table thead tr:last-child th {
-  padding-top: 7px;
-}
-/* 模型 / 供应商 跨两行，文字贴底才能和下层那排列名对齐 */
-.gx-home .price-table thead th[rowspan] {
-  vertical-align: bottom;
-}
-.gx-home .price-table td {
-  padding: 13px 18px;
-  vertical-align: middle;
-  border: 0;
-}
-/* 分隔线只画在厂商切换处。每行一条通栏细线会让 14 行看起来像账本 */
-.gx-home .price-table tbody tr.pt-gap td {
-  border-top: 1px solid var(--line);
-}
-.gx-home .price-table tbody tr {
-  transition: background 0.12s;
-}
-.gx-home .price-table tbody tr:hover {
-  background: color-mix(in srgb, var(--line) 16%, transparent);
-}
-.gx-home .price-table .num {
-  text-align: right;
-  white-space: nowrap;
-}
-.gx-home .price-table .ven {
-  text-align: center;
-  width: 64px;
-}
-/* 缓存两列压一档：金额逐行不同所以值得成列，但不该跟主价抢视线 */
-.gx-home .price-table .soft {
-  background: color-mix(in srgb, var(--ink-3) 5%, transparent);
-}
-.gx-home .pt-name {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  font-weight: 550;
-  letter-spacing: -0.01em;
-  color: var(--ink);
-}
-.gx-home .pt-sub {
+.gx-home .pc-off {
   display: flex;
-  align-items: center;
-  gap: 7px;
+  gap: 24px;
   flex-wrap: wrap;
-  margin-top: 3px;
-  font-size: 11.5px;
-  color: var(--ink-3);
+  margin-bottom: 10px;
 }
-/* 分组降为模型名下的小标签。原先它是独立一列，同一厂商每行都是同一个值，
-   占着宽度却零信息量，还独占了品牌色 */
-.gx-home .pt-grp {
-  padding: 1px 6px;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--ink-3) 14%, transparent);
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.03em;
-  color: var(--ink-2);
-}
-.gx-home .pt-snap {
-  padding: 0 5px;
+.gx-home .pc-zone {
+  background: var(--accent-tint);
   border: 1px solid var(--line);
-  border-radius: 3px;
-  font-size: 10.5px;
-  color: var(--ink-3);
-  cursor: help;
+  padding: 12px 14px;
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
 }
-.gx-home .pt-price {
-  font-family: var(--font-mono);
-  font-size: 15.5px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
+.gx-home .pc-zone .mine-line {
+  justify-content: flex-start;
 }
-.gx-home .pt-hit {
-  font-family: var(--font-mono);
-  font-size: 13.5px;
-  font-weight: 550;
-  font-variant-numeric: tabular-nums;
-  color: var(--accent-deep, var(--accent));
+.gx-home .pc-cache {
+  margin-top: 10px;
 }
-.gx-home .pt-write {
-  font-family: var(--font-mono);
-  font-size: 13.5px;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink-2);
-}
-.gx-home .pt-na {
-  font-size: 12.5px;
-  color: var(--ink-3);
-}
-/* ---------- 骨架屏 ---------- */
-.gx-home .pt-sk {
-  display: block;
-  height: 13px;
-  border-radius: 3px;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--line) 45%, transparent) 25%,
-    var(--line) 37%,
-    color-mix(in srgb, var(--line) 45%, transparent) 63%
-  );
-  background-size: 400% 100%;
-}
-.gx-home .pt-sk.lg {
-  width: 170px;
-}
-.gx-home .pt-sk.sm {
-  width: 78px;
-  margin-left: auto;
-}
-.gx-home .pt-sk.xs {
-  width: 52px;
-  margin-left: auto;
-}
-@media (prefers-reduced-motion: no-preference) {
-.gx-home .pt-sk {
-    animation: gx-home-pt-shimmer 1.4s ease infinite;
-  }
-}
-@keyframes gx-home-pt-shimmer {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: 0 0;
-  }
-}
-/* ---------- 空态与脚注 ---------- */
-.gx-home .pt-empty {
+/* 空态与加载态：沿用脚注的字号，不另起一套 */
+.gx-home .pz-empty {
   padding: 48px 20px;
   text-align: center;
-  font-size: 0.88rem;
-  color: var(--ink-3);
-}
-.gx-home .pt-empty b {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 15px;
-  font-weight: 550;
-  color: var(--ink-2);
-}
-.gx-home .pt-note {
-  margin: 16px 0 0;
-  font-size: 0.79rem;
-  line-height: 1.75;
-  color: var(--ink-3);
-}
-.gx-home .pt-note code {
-  padding: 1px 5px;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--ink-3) 12%, transparent);
   font-family: var(--font-mono);
-  font-size: 11.5px;
-  color: var(--ink-2);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
 }
-/* ---------- 移动端：行塌成卡片，4 个数字排 2x2 ---------- */
-@media (max-width: 860px) {
-.gx-home .price-table thead {
+@media (max-width: 899px) {
+.gx-home .tbl {
     display: none;
   }
-.gx-home .pt-wrap {
-    border: 0;
-    background: transparent;
-    overflow: visible;
-  }
-.gx-home .price-table table,
-.gx-home .price-table tbody {
+.gx-home .pcards {
     display: block;
   }
-.gx-home .price-table tbody tr {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 13px 14px;
-    margin-bottom: 10px;
-    padding: 16px;
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    background: var(--elevated, #fff);
+.gx-home .eq {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-.gx-home .price-table tbody tr:hover {
-    background: var(--elevated, #fff);
-  }
-.gx-home .price-table tbody tr.pt-gap td {
-    border-top: 0;
-  }
-.gx-home .price-table td {
-    display: block;
-    padding: 0;
-  }
-.gx-home .price-table td:first-child {
+.gx-home .eq-cell.out {
     grid-column: 1 / -1;
   }
-.gx-home .price-table .ven {
-    display: none;
+}
+@media (max-width: 640px) {
+.gx-home .calc-ctl {
+    padding: 18px 16px 16px;
+    gap: 16px;
   }
-.gx-home .price-table .num {
-    text-align: left;
+.gx-home .ctl,
+.gx-home .ctl-range {
+    min-width: 0;
+    flex: 1 1 100%;
+    max-width: none;
   }
-.gx-home .price-table .soft {
-    background: transparent;
+.gx-home .eq {
+    grid-template-columns: 1fr;
   }
-/* 列名跟着值走，否则塌成卡片后不知道哪个数字是什么 */
-.gx-home .price-table td.num::before {
-    content: attr(data-label);
-    display: block;
-    margin-bottom: 3px;
-    font-family: var(--font-mono);
-    font-size: 10px;
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
-    color: var(--ink-3);
+.gx-home .eq-cell.out {
+    grid-column: auto;
   }
-.gx-home .pt-search {
-    margin-left: 0;
-    width: 100%;
+.gx-home .bars {
+    padding: 18px 16px 4px;
   }
-.gx-home .pt-search input {
-    width: 100%;
+.gx-home .bar-row {
+    grid-template-columns: 96px 1fr 88px;
+    gap: 10px;
+  }
+.gx-home .calc-out {
+    margin: 12px 16px 0;
+  }
+/* 触摸目标 ≥ 44px */
+.gx-home .filters button {
+    height: 44px;
   }
 }
 /* ============================================================

@@ -1,8 +1,14 @@
 import { describe, expect, test } from 'vitest'
 
 import {
+  discountRatio,
+  monthlyCny,
+  officialCny,
+  ourCny,
+  savedCny,
   toRows,
   uniformCacheDiscount,
+  zhe,
   type PricingPayload,
 } from './pricing'
 
@@ -256,6 +262,168 @@ describe('toRows 排序', () => {
       })
     )
     expect(rows.map((r) => r.name)).toEqual(['a-gpt', 'b-gpt'])
+  })
+})
+
+describe('toRows 官方价', () => {
+  test('官方价是不含分组倍率的基准价，实付价才乘倍率', () => {
+    const [row] = toRows(
+      payload({
+        data: [
+          model({
+            model_ratio: 2.5,
+            completion_ratio: 5,
+            enable_groups: ['Claude Max'],
+          }),
+        ],
+      })
+    )
+    expect(row.officialInputUsd).toBe(5) // 2.5 × 2，不乘 1.5
+    expect(row.officialOutputUsd).toBe(25) // 5 × 5
+    expect(row.inputUsd).toBe(7.5) // 2.5 × 1.5 × 2
+    expect(row.outputUsd).toBe(37.5)
+  })
+
+  test('倍率小于 1 的分组，实付价低于官方价', () => {
+    const [row] = toRows(
+      payload({
+        data: [
+          model({
+            model_ratio: 2.5,
+            completion_ratio: 6,
+            enable_groups: ['codex pro'],
+          }),
+        ],
+      })
+    )
+    expect(row.officialInputUsd).toBe(5)
+    expect(row.inputUsd).toBe(2.5) // 5 折
+    expect(row.officialOutputUsd).toBe(30)
+    expect(row.outputUsd).toBe(15)
+  })
+
+  test('default 分组倍率为 1 时两者相等', () => {
+    const [row] = toRows(payload({ data: [model({ model_ratio: 3 })] }))
+    expect(row.officialInputUsd).toBe(row.inputUsd)
+    expect(row.officialOutputUsd).toBe(row.outputUsd)
+  })
+
+  test('官方价同样收敛浮点，不带二进制尾巴', () => {
+    const [row] = toRows(
+      payload({ data: [model({ model_ratio: 0.05, completion_ratio: 3 })] })
+    )
+    expect(row.officialInputUsd).toBe(0.1)
+    expect(row.officialOutputUsd).toBe(0.3)
+  })
+
+  test('快照合并只在含官方价在内的价格全部相同时发生', () => {
+    // 两行实付价相同但官方价不同（分组倍率不同抵消了差异）时必须保留两行，
+    // 合并会让「官方价」那一列凭空丢失一个真实数值。
+    const rows = toRows(
+      payload({
+        data: [
+          model({ model_name: 'm', model_ratio: 1, enable_groups: ['default'] }),
+          model({
+            model_name: 'm-20251001',
+            model_ratio: 2,
+            enable_groups: ['codex pro'],
+          }),
+        ],
+      })
+    )
+    expect(rows).toHaveLength(2)
+  })
+})
+
+describe('人民币折算与折扣', () => {
+  const rates = { usdToCny: 7.3, cnyPerQuotaUsd: 1 }
+
+  const opus = () =>
+    toRows(
+      payload({
+        data: [
+          model({
+            model_ratio: 2.5,
+            completion_ratio: 5,
+            cache_ratio: 0.1,
+            create_cache_ratio: 1.25,
+            enable_groups: ['Claude Max'],
+          }),
+        ],
+      })
+    )[0]
+
+  test('官方美元牌价按汇率折成人民币', () => {
+    const r = opus()
+    expect(officialCny(r, 'input', rates)).toBe(36.5) // $5 × 7.3
+    expect(officialCny(r, 'output', rates)).toBe(182.5) // $25 × 7.3
+  })
+
+  test('本站价按充值价折算；Price=1 时人民币数值等于额度美元数', () => {
+    const r = opus()
+    expect(ourCny(r, 'input', rates)).toBe(7.5)
+    expect(ourCny(r, 'output', rates)).toBe(37.5)
+  })
+
+  test('充值价不是 1 时本站价跟着变', () => {
+    const r = opus()
+    expect(ourCny(r, 'input', { usdToCny: 7.3, cnyPerQuotaUsd: 2 })).toBe(15)
+  })
+
+  test('折扣 = 本站价 / 官方折合价，越小越便宜', () => {
+    const r = opus()
+    // 7.5 / 36.5 ≈ 0.2055
+    expect(discountRatio(r, 'input', rates)).toBeCloseTo(0.2055, 4)
+    expect(zhe(discountRatio(r, 'input', rates))).toBe('2.1 折')
+  })
+
+  test('省下的钱 = 官方折合价 - 本站价', () => {
+    const r = opus()
+    expect(savedCny(r, 'input', rates)).toBe(29) // 36.5 - 7.5
+  })
+
+  test('汇率缺失或为 0 时折扣返回 null，不产出 Infinity 或 NaN', () => {
+    const r = opus()
+    const broken = { usdToCny: 0, cnyPerQuotaUsd: 1 }
+    expect(discountRatio(r, 'input', broken)).toBeNull()
+    expect(savedCny(r, 'input', broken)).toBeNull()
+  })
+
+  test('zhe 只保留一位小数，且带单位', () => {
+    expect(zhe(0.21)).toBe('2.1 折')
+    expect(zhe(0.5)).toBe('5.0 折')
+    expect(zhe(1)).toBe('10.0 折')
+    expect(zhe(null)).toBe('—')
+  })
+
+  test('月支出 = 输入单价 × 输入量 + 输出单价 × 输出量', () => {
+    const r = opus()
+    // 官方：36.5×10 + 182.5×2 = 365 + 365 = 730
+    expect(monthlyCny(r, 10, 2, rates).official).toBe(730)
+    // 本站：7.5×10 + 37.5×2 = 75 + 75 = 150
+    expect(monthlyCny(r, 10, 2, rates).ours).toBe(150)
+    expect(monthlyCny(r, 10, 2, rates).saved).toBe(580)
+  })
+
+  test('月用量为 0 时不报错，折扣按单价算而不是除以 0', () => {
+    const r = opus()
+    const m = monthlyCny(r, 0, 0, rates)
+    expect(m.official).toBe(0)
+    expect(m.ours).toBe(0)
+    expect(m.saved).toBe(0)
+    expect(m.ratio).toBeNull()
+  })
+
+  test('缓存价也能折算到人民币，写入不适用时为 null', () => {
+    const r = opus()
+    expect(ourCny(r, 'cacheHit', rates)).toBe(0.75)
+    // 7.5 × 1.25 = 9.375。数据层保留原值，两位小数是渲染层的事
+    expect(ourCny(r, 'cacheWrite', rates)).toBe(9.375)
+
+    const noWrite = toRows(
+      payload({ data: [model({ cache_ratio: 0.1, create_cache_ratio: 0 })] })
+    )[0]
+    expect(ourCny(noWrite, 'cacheWrite', rates)).toBeNull()
   })
 })
 
